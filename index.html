@@ -6,9 +6,6 @@
 <title>Study-Planed</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.0/index.css">
 <style>
 :root {
@@ -189,14 +186,13 @@ input:focus, select:focus, textarea:focus {
     </div>
     <label class="text-sm text-slate-300" for="schoolNameInput">School name</label>
     <input id="schoolNameInput" class="login-input" value="St. Joseph Sr. Sec. School" required autocomplete="organization">
-    <label class="block text-sm text-slate-300 mt-4" for="studentIdInput">School account email</label>
-    <input id="studentIdInput" type="email" class="login-input" placeholder="name@school.edu" required autocomplete="username">
+    <label class="block text-sm text-slate-300 mt-4" for="studentIdInput">Student ID</label>
+    <input id="studentIdInput" class="login-input" placeholder="Enter your student ID" required autocomplete="username">
     <label class="block text-sm text-slate-300 mt-4" for="studentPasswordInput">Password</label>
     <input id="studentPasswordInput" type="password" class="login-input" placeholder="Enter your password" required autocomplete="current-password">
     <button class="btn-primary w-full mt-6 py-3 rounded-xl font-semibold text-white" type="submit">Sign in →</button>
-    <p id="loginError">Sign-in failed. Check your school name, email and password.</p>
-    <p id="loginStatus" class="text-xs text-slate-400 mt-2" role="status"></p>
-    <p class="text-xs text-slate-500 text-center mt-5">Use the account email and password issued by the school administrator.</p>
+    <p id="loginError">The school name, ID, or password is incorrect.</p>
+    <p class="text-xs text-slate-500 text-center mt-5">Demo sign-in details are configured in the page's JavaScript.</p>
   </form>
 </div>
 
@@ -266,7 +262,6 @@ input:focus, select:focus, textarea:focus {
         <div id="adminArea" class="flex items-center gap-2">
           <button id="batchBtn" class="hidden px-3 py-2 rounded-lg text-xs font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 text-white" onclick="openBatchModal()">⚡ Auto Generate</button>
           <button id="modeBtn" class="px-3 py-2 rounded-lg text-xs font-semibold border border-violet-500/50 text-violet-400 hover:bg-violet-500/10 transition" onclick="toggleAdminMode()">🔒 Admin</button>
-          <button id="logoutBtn" class="px-3 py-2 rounded-lg text-xs font-semibold border border-slate-600 text-slate-300 hover:bg-slate-800 transition" onclick="signOutPortal()">Sign out</button>
         </div>
         <div class="glass rounded-lg px-4 py-2 text-sm">
           <span class="text-slate-400">Today:</span>
@@ -608,58 +603,17 @@ input:focus, select:focus, textarea:focus {
 // =====================================================
 // GLOBAL STATE
 // =====================================================
-// Firebase setup: paste the web app config from Firebase Console into this object.
+// DEMO credentials only. For a public site, use a real backend authentication service.
 const SCHOOL_NAME = "St. Joseph Sr. Sec. School";
-const firebaseConfig = {
-  apiKey: "AIzaSyBPBkfCZfSlucB8IMLzvuXB00b0xf2wpus",
-  authDomain: "st-joseph-sr-sec.firebaseapp.com",
-  projectId: "st-joseph-sr-sec",
-  storageBucket: "st-joseph-sr-sec.firebasestorage.app",
-  messagingSenderId: "941772731754",
-  appId: "1:941772731754:web:2bf652c5274922631ce113",
-  measurementId: "G-4S4DWDMGNM"
-};
-let firebaseReady = false;
-let auth = null;
-let db = null;
-let currentUser = null;
-let currentUserProfile = null;
+const STUDENT_LOGIN_ID = "ANMAY001";
+const STUDENT_LOGIN_PASSWORD = "student123";
+const ADMIN_PASSWORD = "admin123";
 let isAdmin = false;
 let isLoggedIn = false;
-let timetableUnsubscribe = null;
-let profileUnsubscribe = null;
-let timetableHasLoadedFromCloud = false;
 let studentInfo = JSON.parse(localStorage.getItem('studyPlaned_studentInfo') || 'null') || {
-  name: 'Student', id: '', course: '', school: SCHOOL_NAME
+  name: 'Anmay Rai', id: STUDENT_LOGIN_ID, course: 'NIOS Senior Secondary (April 2027)', school: SCHOOL_NAME
 };
 let editClassIndex = -1;
-
-function setLoginMessage(message, isError = false) {
-  const err = document.getElementById('loginError');
-  const status = document.getElementById('loginStatus');
-  err.style.display = isError ? 'block' : 'none';
-  err.textContent = isError ? message : '';
-  status.textContent = isError ? '' : (message || '');
-}
-function initFirebase() {
-  const missing = !firebaseConfig.apiKey || firebaseConfig.apiKey.includes('PASTE_') ||
-    !firebaseConfig.projectId || firebaseConfig.projectId.includes('PASTE_') ||
-    !firebaseConfig.appId || firebaseConfig.appId.includes('PASTE_');
-  if (missing) {
-    setLoginMessage('Firebase is not configured yet. Follow the setup guide and paste your Firebase web app config into index.html.', true);
-    return;
-  }
-  try {
-    firebase.initializeApp(firebaseConfig);
-    auth = firebase.auth();
-    db = firebase.firestore();
-    firebaseReady = true;
-    auth.onAuthStateChanged(handleAuthState);
-  } catch (error) {
-    console.error(error);
-    setLoginMessage('Firebase could not start. Check your Firebase configuration.', true);
-  }
-}
 
 const ZOOM_LINKS = {
   BIO: "https://us05web.zoom.us/j/89970114435?pwd=BM5JLSadht8Xwtyyq3I2tXL2bQCjpn.1",
@@ -731,80 +685,7 @@ function escapeHtml(s) {
 // =====================================================
 // PERSISTENCE
 // =====================================================
-function saveTimetable() {
-  // Local cache is for quick display only; Firestore is the shared source of truth.
-  localStorage.setItem('studyPlaned_tt', JSON.stringify(timetable));
-  if (!firebaseReady || !db || !currentUser || !isAdmin) {
-    if (firebaseReady && currentUser && !isAdmin) alert('Only an administrator can change the shared timetable.');
-    return Promise.resolve(false);
-  }
-  return db.collection('portal').doc('timetable').set({ classes: timetable, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: currentUser.uid })
-    .then(() => true)
-    .catch(error => { console.error(error); alert('Could not save timetable to the cloud. Check Firestore rules and your connection.'); return false; });
-}
-function startRealtimeListeners() {
-  if (!db || !currentUser) return;
-  if (timetableUnsubscribe) timetableUnsubscribe();
-  if (profileUnsubscribe) profileUnsubscribe();
-  timetableUnsubscribe = db.collection('portal').doc('timetable').onSnapshot(async snap => {
-    if (snap.exists && Array.isArray(snap.data().classes)) {
-      timetable = snap.data().classes;
-      localStorage.setItem('studyPlaned_tt', JSON.stringify(timetable));
-      timetableHasLoadedFromCloud = true;
-      renderTimetable(); renderDashTodayClasses(); renderDashboard();
-    } else if (!snap.exists && isAdmin && !timetableHasLoadedFromCloud) {
-      // The first admin seeds the shared timetable with the existing starter schedule.
-      await db.collection('portal').doc('timetable').set({ classes: timetable, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: currentUser.uid });
-      timetableHasLoadedFromCloud = true;
-    }
-  }, error => { console.error(error); setLoginMessage('Cannot read timetable. Check Firestore security rules.', true); });
-  profileUnsubscribe = db.collection('users').doc(currentUser.uid).onSnapshot(snap => {
-    if (!snap.exists) return;
-    currentUserProfile = snap.data();
-    studentInfo = {
-      name: currentUserProfile.name || currentUser.email || 'Student',
-      id: currentUserProfile.studentId || currentUser.uid,
-      course: currentUserProfile.course || '',
-      school: currentUserProfile.school || SCHOOL_NAME
-    };
-    localStorage.setItem('studyPlaned_studentInfo', JSON.stringify(studentInfo));
-    renderStudentInfo();
-  }, error => console.error('Profile listener:', error));
-}
-async function handleAuthState(user) {
-  currentUser = user || null;
-  if (!user) {
-    isLoggedIn = false; isAdmin = false; currentUserProfile = null;
-    if (timetableUnsubscribe) timetableUnsubscribe();
-    if (profileUnsubscribe) profileUnsubscribe();
-    document.getElementById('loginScreen').style.display = 'flex';
-    updateAdminView();
-    return;
-  }
-  try {
-    const profileSnap = await db.collection('users').doc(user.uid).get();
-    if (!profileSnap.exists || !['admin','student'].includes(profileSnap.data().role)) {
-      await auth.signOut();
-      setLoginMessage('This account has no school portal role. Ask the administrator to provision it.', true);
-      return;
-    }
-    currentUserProfile = profileSnap.data();
-    if ((currentUserProfile.school || SCHOOL_NAME).toLowerCase() !== SCHOOL_NAME.toLowerCase()) {
-      await auth.signOut();
-      setLoginMessage('This account is not assigned to this school portal.', true);
-      return;
-    }
-    isLoggedIn = true;
-    isAdmin = currentUserProfile.role === 'admin';
-    studentInfo = { name: currentUserProfile.name || user.email || 'Student', id: currentUserProfile.studentId || user.uid, course: currentUserProfile.course || '', school: currentUserProfile.school || SCHOOL_NAME };
-    document.getElementById('loginScreen').style.display = 'none';
-    updateAdminView(); renderStudentInfo(); startRealtimeListeners(); renderTimetable(); renderDashTodayClasses(); renderAll();
-  } catch (error) {
-    console.error(error);
-    setLoginMessage('Unable to verify this account. Check your Firestore rules and user profile.', true);
-  }
-}
-
+function saveTimetable() { localStorage.setItem('studyPlaned_tt', JSON.stringify(timetable)); }
 function saveTasks() {
   localStorage.setItem('studyflow_tasks', JSON.stringify({
     tasks: state.tasks,
@@ -1098,69 +979,52 @@ function renderStudentInfo() {
 document.getElementById('schoolNameInput').addEventListener('input', e => {
   document.getElementById('loginSchoolTitle').textContent = e.target.value.trim() || SCHOOL_NAME;
 });
-document.getElementById('loginForm').addEventListener('submit', async e => {
+document.getElementById('loginForm').addEventListener('submit', e => {
   e.preventDefault();
   const school = document.getElementById('schoolNameInput').value.trim();
-  const email = document.getElementById('studentIdInput').value.trim();
+  const id = document.getElementById('studentIdInput').value.trim();
   const password = document.getElementById('studentPasswordInput').value;
-  if (school.toLowerCase() !== SCHOOL_NAME.toLowerCase()) {
-    setLoginMessage('Enter the correct school name.', true); return;
-  }
-  if (!firebaseReady || !auth) {
-    setLoginMessage('Firebase is not configured. Follow the setup guide first.', true); return;
-  }
-  setLoginMessage('Signing in…');
-  try {
-    await auth.signInWithEmailAndPassword(email, password);
-    setLoginMessage('');
-  } catch (error) {
-    console.error(error);
-    const messages = {
-      'auth/invalid-credential': 'Incorrect email or password.',
-      'auth/user-not-found': 'No account exists for this email.',
-      'auth/wrong-password': 'Incorrect email or password.',
-      'auth/too-many-requests': 'Too many attempts. Wait a while and try again.',
-      'auth/invalid-email': 'Enter a valid school account email.'
-    };
-    setLoginMessage(messages[error.code] || 'Sign-in failed. Check your account and try again.', true);
-  }
+  const ok = school.toLowerCase() === SCHOOL_NAME.toLowerCase() && id.toLowerCase() === STUDENT_LOGIN_ID.toLowerCase() && password === STUDENT_LOGIN_PASSWORD;
+  document.getElementById('loginError').style.display = ok ? 'none' : 'block';
+  if (!ok) return;
+  isLoggedIn = true;
+  document.getElementById('loginScreen').style.display = 'none';
+  renderStudentInfo();
 });
 function editStudentInfo() {
-  if (!isAdmin || !currentUser || !db) return;
+  if (!isAdmin) return;
   const name = prompt('Student name:', studentInfo.name);
   if (name === null) return;
-  const id = prompt('Student ID:', studentInfo.id);
+  const id = prompt('Student ID shown on profile:', studentInfo.id);
   if (id === null) return;
   const course = prompt('Class / course:', studentInfo.course);
   if (course === null) return;
-  const school = prompt('School name:', studentInfo.school);
+  const school = prompt('School name shown on profile:', studentInfo.school);
   if (school === null) return;
   studentInfo = { name: name.trim() || studentInfo.name, id: id.trim() || studentInfo.id, course: course.trim() || studentInfo.course, school: school.trim() || studentInfo.school };
-  db.collection('users').doc(currentUser.uid).update({ name: studentInfo.name, studentId: studentInfo.id, course: studentInfo.course, school: studentInfo.school })
-    .then(() => { localStorage.setItem('studyPlaned_studentInfo', JSON.stringify(studentInfo)); renderStudentInfo(); })
-    .catch(error => { console.error(error); alert('Could not save profile. Admins can edit user profiles in Firebase Console.'); });
+  localStorage.setItem('studyPlaned_studentInfo', JSON.stringify(studentInfo));
+  renderStudentInfo();
 }
 
 // Admin mode
 function toggleAdminMode() {
-  // Role is assigned by Firebase, never by a password prompt in client-side code.
-  if (!currentUser || !currentUserProfile || currentUserProfile.role !== 'admin') {
-    alert('Administrator access is required for this action.'); return;
+  if (isAdmin) {
+    isAdmin = false;
+  } else {
+    const entered = prompt("Enter Admin Password:");
+    if (entered === null) return;
+    if (entered === ADMIN_PASSWORD) { isAdmin = true; }
+    else { alert("Incorrect password!"); return; }
   }
-  isAdmin = !isAdmin;
-  updateAdminView(); renderStudentInfo(); renderTimetable();
-}
-
-function signOutPortal() {
-  if (auth) auth.signOut().catch(error => { console.error(error); alert('Could not sign out. Try again.'); });
+  updateAdminView();
+  renderStudentInfo();
+  renderTimetable();
 }
 
 function updateAdminView() {
   const btn = document.getElementById('modeBtn');
   const fab = document.getElementById('fabBtn');
   const batchBtn = document.getElementById('batchBtn');
-  btn.classList.toggle('hidden', !currentUserProfile || currentUserProfile.role !== 'admin');
-  document.getElementById('logoutBtn').classList.toggle('hidden', !currentUser);
   if (isAdmin) {
     btn.innerHTML = '🔓 Exit Admin';
     btn.style.borderColor = '#4ade80';
@@ -1664,10 +1528,10 @@ document.getElementById('todayDate').textContent = new Date().toLocaleDateString
 
 loadTasks();
 updateAdminView();
+renderStudentInfo();
 renderAll();
 updateTimerDisplay();
 renderTimetable();
-initFirebase();
 
 // Close modals on backdrop
 document.getElementById('taskModal').addEventListener('click', e => { if (e.target.id === 'taskModal') closeTaskModal(); });
