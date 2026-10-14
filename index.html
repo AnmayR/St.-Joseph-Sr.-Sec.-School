@@ -1,0 +1,1680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Study-Planed</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.0/index.css">
+<style>
+:root {
+  --bg: #0a0b10;
+  --panel: #12141c;
+  --panel-2: #1a1d2e;
+  --accent: #8b5cf6;
+  --accent-2: #6366f1;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --border: #252840;
+}
+* { margin:0; padding:0; box-sizing:border-box; font-family:'Inter', system-ui, sans-serif; }
+body {
+  background: radial-gradient(1200px 600px at 10% -10%, rgba(139,92,246,0.12), transparent),
+              radial-gradient(900px 500px at 110% 10%, rgba(99,102,241,0.1), transparent),
+              var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* Hidden ANMAY credit — nearly invisible */
+.hidden-credit {
+  position: fixed;
+  bottom: 2px;
+  right: 4px;
+  font-size: 3.5px;
+  color: rgba(255,255,255,0.025);
+  letter-spacing: 0.5px;
+  user-select: none;
+  pointer-events: none;
+  z-index: 0;
+  font-weight: 300;
+}
+
+.glass {
+  background: rgba(18, 20, 28, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(148, 163, 184, 0.08);
+}
+.scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+.scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+.scrollbar::-webkit-scrollbar-track { background: transparent; }
+.fade-in { animation: fadeIn .3s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: translateY(0);} }
+
+.priority-high { background: linear-gradient(135deg, #ef4444, #f97316); }
+.priority-medium { background: linear-gradient(135deg, #f59e0b, #eab308); }
+.priority-low { background: linear-gradient(135deg, #10b981, #06b6d4); }
+
+.tab-active {
+  background: linear-gradient(135deg, rgba(139,92,246,0.2), rgba(99,102,241,0.2));
+  color: #fff !important;
+  border-color: rgba(139,92,246,0.4) !important;
+}
+
+.task-card { transition: all .2s ease; }
+.task-card:hover { transform: translateY(-2px); border-color: rgba(139,92,246,0.4); }
+.done .task-title { text-decoration: line-through; color: var(--muted); }
+
+input, select, textarea {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(139,92,246,0.15);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  transition: all .2s;
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 25px -10px rgba(139,92,246,0.5); }
+
+.calendar-cell { min-height: 90px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500;
+}
+
+/* Timetable specific */
+.date-card { transition: all .3s; }
+.date-card:hover { border-color: rgba(139,92,246,0.3); }
+.join-active {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(22,163,74,0.3);
+  padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
+  border: none; cursor: pointer; transition: all .3s;
+}
+.join-active:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(22,163,74,0.4); }
+.join-locked {
+  background: #1e2030; color: #6b7280; border: 1px solid #2a2f4a;
+  padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
+  cursor: not-allowed;
+}
+.join-ended {
+  background: #161825; color: #4b5563; border: 1px solid #1e2030;
+  padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
+  cursor: not-allowed;
+}
+
+.time-badge {
+  color: #818cf8; font-weight: 700; font-size: 13px;
+  background: #1a1d30; padding: 6px 12px; border-radius: 8px; border: 1px solid #2a2f4a;
+}
+
+/* Mobile sidebar toggle */
+.mobile-toggle {
+  display: none;
+  position: fixed; top: 14px; left: 14px; z-index: 100;
+  background: var(--panel); border: 1px solid var(--border);
+  padding: 8px 12px; border-radius: 10px; cursor: pointer; color: #fff;
+}
+@media (max-width: 768px) {
+  .mobile-toggle { display: block; }
+  aside { transform: translateX(-100%); transition: transform .3s; z-index: 90; }
+  aside.open { transform: translateX(0); }
+  main { margin-left: 0 !important; }
+}
+
+/* Modal */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+  justify-content: center; align-items: center; z-index: 99; backdrop-filter: blur(4px);
+}
+.modal-overlay.active { display: flex; }
+.modal-box {
+  background: #12141c; padding: 28px; border-radius: 20px;
+  width: 440px; max-width: 92%; max-height: 90vh; overflow-y: auto;
+  border: 1px solid #2a2f4a; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.modal-box h3 {
+  margin-bottom: 16px; font-size: 20px; font-weight: 700;
+  background: linear-gradient(135deg, #818cf8, #60a5fa);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.section-label {
+  font-size: 11px; color: #6b7280; margin: 14px 0 6px;
+  font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+}
+.save-btn {
+  width: 100%; padding: 14px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff; border: none; border-radius: 12px;
+  margin-top: 16px; cursor: pointer; font-weight: 700; font-size: 15px;
+  transition: all .3s;
+}
+.save-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(99,102,241,0.4); }
+
+.icon-btn-sm {
+  background: #1e2030; border: 1px solid #2a2f4a; cursor: pointer;
+  font-size: 14px; padding: 5px 9px; border-radius: 8px; transition: all .2s;
+}
+.icon-btn-sm:hover { background: #2a2f4a; border-color: #6366f1; }
+
+/* School login and student profile */
+#loginScreen{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(900px 500px at 10% 0%,rgba(99,102,241,.22),transparent),#080a12}
+.login-card{width:100%;max-width:440px;padding:32px;border:1px solid #2a2f4a;border-radius:24px;background:rgba(18,20,28,.96);box-shadow:0 24px 80px #0008}
+.login-input{width:100%;padding:12px 14px;border-radius:10px;margin-top:6px}
+#loginError{display:none;color:#fca5a5;font-size:13px;margin-top:12px}
+.student-profile{background:linear-gradient(135deg,rgba(30,41,59,.85),rgba(26,29,46,.85));border:1px solid #30364f}
+
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <form class="login-card" id="loginForm">
+    <div class="text-center mb-7">
+      <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-3xl">🏫</div>
+      <p class="text-xs uppercase tracking-[.2em] text-violet-300 mb-2">Student Portal</p>
+      <h1 class="text-2xl font-bold text-white" id="loginSchoolTitle">St. Joseph Sr. Sec. School</h1>
+      <p class="text-sm text-slate-400 mt-2">Sign in to continue to Study-Planed</p>
+    </div>
+    <label class="text-sm text-slate-300" for="schoolNameInput">School name</label>
+    <input id="schoolNameInput" class="login-input" value="St. Joseph Sr. Sec. School" required autocomplete="organization">
+    <label class="block text-sm text-slate-300 mt-4" for="studentIdInput">School account email</label>
+    <input id="studentIdInput" type="email" class="login-input" placeholder="name@school.edu" required autocomplete="username">
+    <label class="block text-sm text-slate-300 mt-4" for="studentPasswordInput">Password</label>
+    <input id="studentPasswordInput" type="password" class="login-input" placeholder="Enter your password" required autocomplete="current-password">
+    <button class="btn-primary w-full mt-6 py-3 rounded-xl font-semibold text-white" type="submit">Sign in →</button>
+    <p id="loginError">Sign-in failed. Check your school name, email and password.</p>
+    <p id="loginStatus" class="text-xs text-slate-400 mt-2" role="status"></p>
+    <p class="text-xs text-slate-500 text-center mt-5">Use the account email and password issued by the school administrator.</p>
+  </form>
+</div>
+
+<div class="hidden-credit">ANMAY</div>
+
+<button class="mobile-toggle" onclick="document.querySelector('aside').classList.toggle('open')">☰</button>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="w-64 border-r border-slate-800/50 p-5 flex flex-col sticky top-0 h-screen overflow-y-auto" style="background:rgba(12,14,20,0.95)">
+    <div class="flex items-center gap-3 mb-8">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30 text-lg">📚</div>
+      <div>
+        <h1 class="font-bold text-lg leading-tight bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">Study-Planed</h1>
+        <p class="text-xs text-slate-500">Your study planner</p>
+      </div>
+    </div>
+
+    <nav class="flex flex-col gap-1 flex-1">
+      <button data-tab="dashboard" class="nav-btn tab-active flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium border border-transparent text-left">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        Dashboard
+      </button>
+      <button data-tab="timetable" class="nav-btn flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium border border-transparent text-left text-slate-400 hover:bg-slate-800/40">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Timetable
+      </button>
+      <button data-tab="tasks" class="nav-btn flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium border border-transparent text-left text-slate-400 hover:bg-slate-800/40">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Tasks
+      </button>
+      <button data-tab="calendar" class="nav-btn flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium border border-transparent text-left text-slate-400 hover:bg-slate-800/40">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Calendar
+      </button>
+      <button data-tab="timer" class="nav-btn flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium border border-transparent text-left text-slate-400 hover:bg-slate-800/40">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Pomodoro
+      </button>
+      <button data-tab="stats" class="nav-btn flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium border border-transparent text-left text-slate-400 hover:bg-slate-800/40">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Statistics
+      </button>
+    </nav>
+
+    <div class="glass rounded-xl p-4 mt-4">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs text-slate-400">Weekly Goal</span>
+        <span id="goalPercent" class="text-xs font-semibold text-violet-300">0%</span>
+      </div>
+      <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+        <div id="goalBar" class="h-full bg-gradient-to-r from-violet-500 to-indigo-500 transition-all" style="width:0%"></div>
+      </div>
+      <p class="text-[11px] text-slate-500 mt-2"><span id="goalDone">0</span> / <span id="goalTotal">0</span> tasks completed</p>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 p-6 md:p-8 overflow-x-hidden">
+    <!-- Top bar -->
+    <div class="flex items-center justify-between mb-8 flex-wrap gap-4">
+      <div>
+        <h2 id="pageTitle" class="text-2xl font-bold">Dashboard</h2>
+        <p id="pageSubtitle" class="text-sm text-slate-400">Welcome back! Let's make today productive.</p>
+      </div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <div id="adminArea" class="flex items-center gap-2">
+          <button id="batchBtn" class="hidden px-3 py-2 rounded-lg text-xs font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 text-white" onclick="openBatchModal()">⚡ Auto Generate</button>
+          <button id="modeBtn" class="px-3 py-2 rounded-lg text-xs font-semibold border border-violet-500/50 text-violet-400 hover:bg-violet-500/10 transition" onclick="toggleAdminMode()">🔒 Admin</button>
+          <button id="logoutBtn" class="px-3 py-2 rounded-lg text-xs font-semibold border border-slate-600 text-slate-300 hover:bg-slate-800 transition" onclick="signOutPortal()">Sign out</button>
+        </div>
+        <div class="glass rounded-lg px-4 py-2 text-sm">
+          <span class="text-slate-400">Today:</span>
+          <span id="todayDate" class="font-semibold ml-1"></span>
+        </div>
+        <button onclick="openTaskModal()" class="btn-primary px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 text-white">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Task
+        </button>
+      </div>
+    </div>
+
+    <!-- ============ DASHBOARD ============ -->
+    <section id="view-dashboard" class="view fade-in">
+      <div class="student-profile rounded-2xl p-5 md:p-6 mb-6">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p class="text-xs uppercase tracking-widest text-violet-300 mb-2">Student Information</p>
+            <h3 id="profileStudentName" class="text-xl font-bold">Anmay Rai</h3>
+            <p class="text-sm text-slate-300 mt-2"><span class="text-slate-500">Student ID:</span> <span id="profileStudentId">ANMAY001</span></p>
+            <p class="text-sm text-slate-300 mt-1"><span class="text-slate-500">Class / Course:</span> <span id="profileClass">NIOS Senior Secondary (April 2027)</span></p>
+            <p class="text-sm text-slate-300 mt-1"><span class="text-slate-500">School:</span> <span id="profileSchool">St. Joseph Sr. Sec. School</span></p>
+            <p class="text-sm text-slate-300 mt-1"><span class="text-slate-500">View Mode:</span> <span id="profileMode" class="chip bg-slate-700 text-slate-200">Student Mode</span></p>
+          </div>
+          <button id="editStudentInfoBtn" class="hidden px-3 py-2 rounded-lg text-xs font-semibold border border-violet-500/50 text-violet-300 hover:bg-violet-500/10" onclick="editStudentInfo()">✏️ Edit Student Info</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="glass rounded-xl p-5">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs text-slate-400 uppercase tracking-wide">Total Tasks</span>
+            <div class="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
+              <svg class="w-4 h-4 text-violet-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </div>
+          </div>
+          <p id="statTotal" class="text-3xl font-bold">0</p>
+        </div>
+        <div class="glass rounded-xl p-5">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs text-slate-400 uppercase tracking-wide">Completed</span>
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+              <svg class="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+          </div>
+          <p id="statDone" class="text-3xl font-bold">0</p>
+        </div>
+        <div class="glass rounded-xl p-5">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs text-slate-400 uppercase tracking-wide">Classes Today</span>
+            <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+              <svg class="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+            </div>
+          </div>
+          <p id="statClassesToday" class="text-3xl font-bold">0</p>
+        </div>
+        <div class="glass rounded-xl p-5">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs text-slate-400 uppercase tracking-wide">Focus Hours</span>
+            <div class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+              <svg class="w-4 h-4 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+          </div>
+          <p id="statHours" class="text-3xl font-bold">0<span class="text-lg text-slate-400 ml-1">h</span></p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 glass rounded-xl p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-lg">Today's Tasks</h3>
+            <span class="text-xs text-slate-400" id="todayCount">0 tasks</span>
+          </div>
+          <div id="todayTasks" class="space-y-3 max-h-[400px] overflow-y-auto scrollbar pr-2"></div>
+        </div>
+        <div class="glass rounded-xl p-6">
+          <h3 class="font-semibold text-lg mb-4">Upcoming Deadlines</h3>
+          <div id="upcomingTasks" class="space-y-3 max-h-[400px] overflow-y-auto scrollbar pr-2"></div>
+        </div>
+      </div>
+
+      <!-- Today's Classes on Dashboard -->
+      <div class="glass rounded-xl p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-4">📅 Today's Classes</h3>
+        <div id="dashTodayClasses" class="space-y-2"></div>
+      </div>
+
+      <div class="glass rounded-xl p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-4">Weekly Progress</h3>
+        <canvas id="weeklyChart" height="100"></canvas>
+      </div>
+    </section>
+
+    <!-- ============ TIMETABLE ============ -->
+    <section id="view-timetable" class="view hidden fade-in">
+      <div id="timetableContainer"></div>
+      <button id="fabBtn" class="hidden fixed right-7 bottom-7 w-14 h-14 rounded-full border-none bg-gradient-to-br from-violet-600 to-indigo-600 text-white text-2xl cursor-pointer shadow-lg shadow-violet-500/40 hover:scale-110 hover:rotate-90 transition-all z-50" onclick="openClassModal()">+</button>
+    </section>
+
+    <!-- ============ TASKS ============ -->
+    <section id="view-tasks" class="view hidden fade-in">
+      <div class="glass rounded-xl p-4 mb-6 flex flex-wrap gap-3 items-center">
+        <input id="searchInput" type="text" placeholder="Search tasks..." class="flex-1 min-w-[200px] px-4 py-2 rounded-lg text-sm"/>
+        <select id="filterSubject" class="px-4 py-2 rounded-lg text-sm">
+          <option value="">All Subjects</option>
+        </select>
+        <select id="filterPriority" class="px-4 py-2 rounded-lg text-sm">
+          <option value="">All Priorities</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <select id="filterStatus" class="px-4 py-2 rounded-lg text-sm">
+          <option value="">All Status</option>
+          <option value="pending">Pending</option>
+          <option value="done">Completed</option>
+        </select>
+        <button onclick="openSubjectModal()" class="px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 transition">+ Subject</button>
+      </div>
+      <div id="taskList" class="space-y-3"></div>
+      <div id="emptyTasks" class="hidden glass rounded-xl p-12 text-center">
+        <svg class="w-16 h-16 mx-auto text-slate-600 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <h3 class="font-semibold text-lg mb-1">No tasks yet</h3>
+        <p class="text-sm text-slate-400 mb-4">Create your first task to start planning your study sessions.</p>
+        <button onclick="openTaskModal()" class="btn-primary px-5 py-2 rounded-lg text-sm font-semibold text-white">Create Task</button>
+      </div>
+    </section>
+
+    <!-- ============ CALENDAR ============ -->
+    <section id="view-calendar" class="view hidden fade-in">
+      <div class="glass rounded-xl p-6">
+        <div class="flex items-center justify-between mb-6">
+          <button onclick="changeWeek(-1)" class="p-2 rounded-lg hover:bg-slate-700 transition">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <h3 id="weekLabel" class="font-semibold text-lg"></h3>
+          <div class="flex gap-2">
+            <button onclick="goToday()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 transition">Today</button>
+            <button onclick="changeWeek(1)" class="p-2 rounded-lg hover:bg-slate-700 transition">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="grid grid-cols-7 gap-2 mb-2">
+          <div class="text-center text-xs font-semibold text-slate-400 py-2">MON</div>
+          <div class="text-center text-xs font-semibold text-slate-400 py-2">TUE</div>
+          <div class="text-center text-xs font-semibold text-slate-400 py-2">WED</div>
+          <div class="text-center text-xs font-semibold text-slate-400 py-2">THU</div>
+          <div class="text-center text-xs font-semibold text-slate-400 py-2">FRI</div>
+          <div class="text-center text-xs font-semibold text-slate-400 py-2">SAT</div>
+          <div class="text-center text-xs font-semibold text-slate-400 py-2">SUN</div>
+        </div>
+        <div id="calendarGrid" class="grid grid-cols-7 gap-2"></div>
+      </div>
+    </section>
+
+    <!-- ============ TIMER ============ -->
+    <section id="view-timer" class="view hidden fade-in">
+      <div class="max-w-2xl mx-auto">
+        <div class="glass rounded-xl p-8 text-center">
+          <div class="flex justify-center gap-2 mb-8 flex-wrap">
+            <button data-mode="focus" onclick="setTimerMode('focus')" class="timer-mode tab-active px-4 py-2 rounded-lg text-sm font-medium border border-transparent">Focus (25m)</button>
+            <button data-mode="short" onclick="setTimerMode('short')" class="timer-mode px-4 py-2 rounded-lg text-sm font-medium border border-transparent text-slate-400 hover:bg-slate-800/40">Short Break (5m)</button>
+            <button data-mode="long" onclick="setTimerMode('long')" class="timer-mode px-4 py-2 rounded-lg text-sm font-medium border border-transparent text-slate-400 hover:bg-slate-800/40">Long Break (15m)</button>
+          </div>
+          <div class="relative w-64 h-64 md:w-72 md:h-72 mx-auto mb-8">
+            <svg class="w-full h-full -rotate-90" viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="90" stroke="#1e293b" stroke-width="8" fill="none"/>
+              <circle id="timerCircle" cx="100" cy="100" r="90" stroke="url(#grad)" stroke-width="8" fill="none"
+                      stroke-dasharray="565.48" stroke-dashoffset="0" stroke-linecap="round" style="transition: stroke-dashoffset 1s linear"/>
+              <defs>
+                <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#8b5cf6"/>
+                  <stop offset="100%" stop-color="#6366f1"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <div id="timerDisplay" class="text-5xl md:text-6xl font-bold tracking-tight">25:00</div>
+              <div id="timerLabel" class="text-sm text-slate-400 mt-2">Focus Session</div>
+            </div>
+          </div>
+          <div class="flex justify-center gap-3 mb-6">
+            <button id="startBtn" onclick="toggleTimer()" class="btn-primary px-8 py-3 rounded-xl font-semibold flex items-center gap-2 text-white">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Start
+            </button>
+            <button onclick="resetTimer()" class="px-6 py-3 rounded-xl font-semibold bg-slate-700 hover:bg-slate-600 transition">Reset</button>
+          </div>
+          <div class="flex justify-center gap-6 text-sm">
+            <div>
+              <p class="text-slate-400 text-xs">Sessions Today</p>
+              <p id="sessionCount" class="text-2xl font-bold">0</p>
+            </div>
+            <div>
+              <p class="text-slate-400 text-xs">Total Focus</p>
+              <p id="totalFocus" class="text-2xl font-bold">0m</p>
+            </div>
+          </div>
+        </div>
+        <div class="glass rounded-xl p-6 mt-6">
+          <h3 class="font-semibold mb-4">Link Task to Timer</h3>
+          <select id="timerTask" class="w-full px-4 py-2 rounded-lg text-sm">
+            <option value="">No task linked</option>
+          </select>
+          <p class="text-xs text-slate-400 mt-2">Completed sessions will be logged to the selected task.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ STATS ============ -->
+    <section id="view-stats" class="view hidden fade-in">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="glass rounded-xl p-6">
+          <h3 class="font-semibold text-lg mb-4">Tasks by Subject</h3>
+          <canvas id="subjectChart" height="200"></canvas>
+        </div>
+        <div class="glass rounded-xl p-6">
+          <h3 class="font-semibold text-lg mb-4">Completion Rate</h3>
+          <canvas id="completionChart" height="200"></canvas>
+        </div>
+        <div class="glass rounded-xl p-6 lg:col-span-2">
+          <h3 class="font-semibold text-lg mb-4">Focus Time (Last 7 Days)</h3>
+          <canvas id="focusChart" height="80"></canvas>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ TASK MODAL ============ -->
+<div id="taskModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+  <div class="glass rounded-2xl w-full max-w-lg p-6 fade-in">
+    <div class="flex items-center justify-between mb-5">
+      <h3 id="modalTitle" class="text-xl font-bold">New Task</h3>
+      <button onclick="closeTaskModal()" class="p-1 rounded hover:bg-slate-700">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="taskForm" class="space-y-4">
+      <div>
+        <label class="text-xs text-slate-400 uppercase tracking-wide">Title</label>
+        <input id="taskTitle" type="text" required class="w-full px-4 py-2.5 rounded-lg text-sm mt-1"/>
+      </div>
+      <div>
+        <label class="text-xs text-slate-400 uppercase tracking-wide">Description</label>
+        <textarea id="taskDesc" rows="2" class="w-full px-4 py-2.5 rounded-lg text-sm mt-1 resize-none"></textarea>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs text-slate-400 uppercase tracking-wide">Subject</label>
+          <select id="taskSubject" class="w-full px-4 py-2.5 rounded-lg text-sm mt-1" required></select>
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 uppercase tracking-wide">Priority</label>
+          <select id="taskPriority" class="w-full px-4 py-2.5 rounded-lg text-sm mt-1">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs text-slate-400 uppercase tracking-wide">Due Date</label>
+          <input id="taskDue" type="date" class="w-full px-4 py-2.5 rounded-lg text-sm mt-1"/>
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 uppercase tracking-wide">Est. Time (min)</label>
+          <input id="taskTime" type="number" min="5" step="5" value="30" class="w-full px-4 py-2.5 rounded-lg text-sm mt-1"/>
+        </div>
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button type="submit" class="btn-primary flex-1 py-2.5 rounded-lg font-semibold text-sm text-white">Save Task</button>
+        <button type="button" onclick="closeTaskModal()" class="flex-1 py-2.5 rounded-lg font-semibold text-sm bg-slate-700 hover:bg-slate-600 transition">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ SUBJECT MODAL ============ -->
+<div id="subjectModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+  <div class="glass rounded-2xl w-full max-w-md p-6 fade-in">
+    <h3 class="text-xl font-bold mb-4">Manage Subjects</h3>
+    <div id="subjectList" class="space-y-2 mb-4 max-h-60 overflow-y-auto scrollbar"></div>
+    <div class="flex gap-2">
+      <input id="newSubject" type="text" placeholder="New subject name..." class="flex-1 px-4 py-2 rounded-lg text-sm"/>
+      <input id="newSubjectColor" type="color" value="#8b5cf6" class="w-10 h-10 rounded-lg cursor-pointer border-0"/>
+      <button onclick="addSubject()" class="btn-primary px-4 py-2 rounded-lg text-sm font-semibold text-white">Add</button>
+    </div>
+    <button onclick="closeSubjectModal()" class="w-full mt-4 py-2 rounded-lg font-semibold text-sm bg-slate-700 hover:bg-slate-600 transition">Close</button>
+  </div>
+</div>
+
+<!-- ============ CLASS MODAL (Timetable) ============ -->
+<div class="modal-overlay" id="classModal">
+  <div class="modal-box">
+    <h3 id="classModalTitle">Add Class</h3>
+    <div class="section-label">Schedule</div>
+    <input type="date" id="classDate">
+    <div style="display:flex;gap:10px">
+      <input type="time" id="classStart" placeholder="Start Time">
+      <input type="time" id="classEnd" placeholder="End Time">
+    </div>
+    <div class="section-label">Details</div>
+    <input type="text" id="classSubject" placeholder="Subject (e.g., Biology)">
+    <input type="text" id="classTeacher" placeholder="Teacher">
+    <input type="url" id="classLink" placeholder="Zoom Link (optional)">
+    <button class="save-btn" onclick="saveClass()">💾 Save Class</button>
+  </div>
+</div>
+
+<!-- ============ BATCH MODAL (Timetable) ============ -->
+<div class="modal-overlay" id="batchModal">
+  <div class="modal-box">
+    <h3>⚡ Auto-Generate Timetable</h3>
+    <div class="section-label">Date Range</div>
+    <label style="font-size:12px;color:#6b7280">Start Date</label>
+    <input type="date" id="batchStart">
+    <label style="font-size:12px;color:#6b7280">End Date</label>
+    <input type="date" id="batchEnd">
+    <div style="display:flex;align-items:center;gap:8px;margin:12px 0;font-size:14px;color:#d1d5db">
+      <input type="checkbox" id="skipSundays" checked style="width:18px;height:18px;accent-color:#6366f1">
+      <label for="skipSundays">Skip Sundays</label>
+    </div>
+    <div class="section-label">Slot 1 — 10:00 to 12:00</div>
+    <input type="text" id="s1Subject" value="Biology" placeholder="Subject">
+    <input type="text" id="s1Teacher" value="Biology Faculty" placeholder="Teacher">
+    <div class="section-label">Slot 2 — 13:00 to 15:00</div>
+    <input type="text" id="s2Subject" value="Physics" placeholder="Subject">
+    <input type="text" id="s2Teacher" value="Physics Faculty" placeholder="Teacher">
+    <div class="section-label">Slot 3 — 16:00 to 18:00</div>
+    <input type="text" id="s3Subject" value="Chemistry" placeholder="Subject">
+    <input type="text" id="s3Teacher" value="Chemistry Faculty" placeholder="Teacher">
+    <button class="save-btn" onclick="generateBatchSchedule()">🚀 Generate Schedule</button>
+  </div>
+</div>
+
+<script>
+// =====================================================
+// GLOBAL STATE
+// =====================================================
+// Firebase setup: paste the web app config from Firebase Console into this object.
+const SCHOOL_NAME = "St. Joseph Sr. Sec. School";
+const firebaseConfig = {
+  apiKey: "AIzaSyBPBkfCZfSlucB8IMLzvuXB00b0xf2wpus",
+  authDomain: "st-joseph-sr-sec.firebaseapp.com",
+  projectId: "st-joseph-sr-sec",
+  storageBucket: "st-joseph-sr-sec.firebasestorage.app",
+  messagingSenderId: "941772731754",
+  appId: "1:941772731754:web:2bf652c5274922631ce113",
+  measurementId: "G-4S4DWDMGNM"
+};
+let firebaseReady = false;
+let auth = null;
+let db = null;
+let currentUser = null;
+let currentUserProfile = null;
+let isAdmin = false;
+let isLoggedIn = false;
+let timetableUnsubscribe = null;
+let profileUnsubscribe = null;
+let timetableHasLoadedFromCloud = false;
+let studentInfo = JSON.parse(localStorage.getItem('studyPlaned_studentInfo') || 'null') || {
+  name: 'Student', id: '', course: '', school: SCHOOL_NAME
+};
+let editClassIndex = -1;
+
+function setLoginMessage(message, isError = false) {
+  const err = document.getElementById('loginError');
+  const status = document.getElementById('loginStatus');
+  err.style.display = isError ? 'block' : 'none';
+  err.textContent = isError ? message : '';
+  status.textContent = isError ? '' : (message || '');
+}
+function initFirebase() {
+  const missing = !firebaseConfig.apiKey || firebaseConfig.apiKey.includes('PASTE_') ||
+    !firebaseConfig.projectId || firebaseConfig.projectId.includes('PASTE_') ||
+    !firebaseConfig.appId || firebaseConfig.appId.includes('PASTE_');
+  if (missing) {
+    setLoginMessage('Firebase is not configured yet. Follow the setup guide and paste your Firebase web app config into index.html.', true);
+    return;
+  }
+  try {
+    firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth();
+    db = firebase.firestore();
+    firebaseReady = true;
+    auth.onAuthStateChanged(handleAuthState);
+  } catch (error) {
+    console.error(error);
+    setLoginMessage('Firebase could not start. Check your Firebase configuration.', true);
+  }
+}
+
+const ZOOM_LINKS = {
+  BIO: "https://us05web.zoom.us/j/89970114435?pwd=BM5JLSadht8Xwtyyq3I2tXL2bQCjpn.1",
+  PHYS: "https://us05web.zoom.us/j/89305258004?pwd=DY9DfqUFWSUaFgKz9U501UYHrLOYDe.1",
+  CHEM: "https://us05web.zoom.us/j/89222282073?pwd=rf7kv1kKN6ca5aemXDhPFSDfCwSE57.1"
+};
+
+// Timetable
+let timetable = JSON.parse(localStorage.getItem("studyPlaned_tt")) || [
+  {date:getTodayStr(), start:"10:00", end:"12:00", subject:"Biology", teacher:"Biology Faculty", link: ZOOM_LINKS.BIO},
+  {date:getTodayStr(), start:"13:00", end:"15:00", subject:"Physics", teacher:"Physics Faculty", link: ZOOM_LINKS.PHYS},
+  {date:getTodayStr(), start:"16:00", end:"18:00", subject:"Chemistry", teacher:"Chemistry Faculty", link: ZOOM_LINKS.CHEM}
+];
+
+// Tasks / Planner
+let state = {
+  tasks: [],
+  subjects: [],
+  sessions: [],
+  weeklyGoal: 10,
+  currentWeekStart: getMonday(new Date()),
+  timerMode: 'focus',
+  timerDuration: 25 * 60,
+  timerRemaining: 25 * 60,
+  timerRunning: false,
+  timerInterval: null,
+  editingTaskId: null
+};
+
+const MODES = {
+  focus: { label: 'Focus Session', duration: 25 * 60 },
+  short: { label: 'Short Break', duration: 5 * 60 },
+  long: { label: 'Long Break', duration: 15 * 60 }
+};
+
+// =====================================================
+// UTILS
+// =====================================================
+function getTodayStr() {
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function uid() { return Math.random().toString(36).slice(2,10); }
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  date.setDate(diff);
+  date.setHours(0,0,0,0);
+  return date;
+}
+function fmtDate(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}function prettyDate(str) {
+  if (!str) return '';
+  const d = new Date(str + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function daysBetween(a, b) {
+  const d1 = new Date(a + 'T00:00:00');
+  const d2 = new Date(b + 'T00:00:00');
+  return Math.round((d2 - d1) / 86400000);
+}
+function getSubject(id) { return state.subjects.find(s => s.id === id); }
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// =====================================================
+// PERSISTENCE
+// =====================================================
+function saveTimetable() {
+  // Local cache is for quick display only; Firestore is the shared source of truth.
+  localStorage.setItem('studyPlaned_tt', JSON.stringify(timetable));
+  if (!firebaseReady || !db || !currentUser || !isAdmin) {
+    if (firebaseReady && currentUser && !isAdmin) alert('Only an administrator can change the shared timetable.');
+    return Promise.resolve(false);
+  }
+  return db.collection('portal').doc('timetable').set({ classes: timetable, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: currentUser.uid })
+    .then(() => true)
+    .catch(error => { console.error(error); alert('Could not save timetable to the cloud. Check Firestore rules and your connection.'); return false; });
+}
+function startRealtimeListeners() {
+  if (!db || !currentUser) return;
+  if (timetableUnsubscribe) timetableUnsubscribe();
+  if (profileUnsubscribe) profileUnsubscribe();
+  timetableUnsubscribe = db.collection('portal').doc('timetable').onSnapshot(async snap => {
+    if (snap.exists && Array.isArray(snap.data().classes)) {
+      timetable = snap.data().classes;
+      localStorage.setItem('studyPlaned_tt', JSON.stringify(timetable));
+      timetableHasLoadedFromCloud = true;
+      renderTimetable(); renderDashTodayClasses(); renderDashboard();
+    } else if (!snap.exists && isAdmin && !timetableHasLoadedFromCloud) {
+      // The first admin seeds the shared timetable with the existing starter schedule.
+      await db.collection('portal').doc('timetable').set({ classes: timetable, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: currentUser.uid });
+      timetableHasLoadedFromCloud = true;
+    }
+  }, error => { console.error(error); setLoginMessage('Cannot read timetable. Check Firestore security rules.', true); });
+  profileUnsubscribe = db.collection('users').doc(currentUser.uid).onSnapshot(snap => {
+    if (!snap.exists) return;
+    currentUserProfile = snap.data();
+    studentInfo = {
+      name: currentUserProfile.name || currentUser.email || 'Student',
+      id: currentUserProfile.studentId || currentUser.uid,
+      course: currentUserProfile.course || '',
+      school: currentUserProfile.school || SCHOOL_NAME
+    };
+    localStorage.setItem('studyPlaned_studentInfo', JSON.stringify(studentInfo));
+    renderStudentInfo();
+  }, error => console.error('Profile listener:', error));
+}
+async function handleAuthState(user) {
+  currentUser = user || null;
+  if (!user) {
+    isLoggedIn = false; isAdmin = false; currentUserProfile = null;
+    if (timetableUnsubscribe) timetableUnsubscribe();
+    if (profileUnsubscribe) profileUnsubscribe();
+    document.getElementById('loginScreen').style.display = 'flex';
+    updateAdminView();
+    return;
+  }
+  try {
+    const profileSnap = await db.collection('users').doc(user.uid).get();
+    if (!profileSnap.exists || !['admin','student'].includes(profileSnap.data().role)) {
+      await auth.signOut();
+      setLoginMessage('This account has no school portal role. Ask the administrator to provision it.', true);
+      return;
+    }
+    currentUserProfile = profileSnap.data();
+    if ((currentUserProfile.school || SCHOOL_NAME).toLowerCase() !== SCHOOL_NAME.toLowerCase()) {
+      await auth.signOut();
+      setLoginMessage('This account is not assigned to this school portal.', true);
+      return;
+    }
+    isLoggedIn = true;
+    isAdmin = currentUserProfile.role === 'admin';
+    studentInfo = { name: currentUserProfile.name || user.email || 'Student', id: currentUserProfile.studentId || user.uid, course: currentUserProfile.course || '', school: currentUserProfile.school || SCHOOL_NAME };
+    document.getElementById('loginScreen').style.display = 'none';
+    updateAdminView(); renderStudentInfo(); startRealtimeListeners(); renderTimetable(); renderDashTodayClasses(); renderAll();
+  } catch (error) {
+    console.error(error);
+    setLoginMessage('Unable to verify this account. Check your Firestore rules and user profile.', true);
+  }
+}
+
+function saveTasks() {
+  localStorage.setItem('studyflow_tasks', JSON.stringify({
+    tasks: state.tasks,
+    subjects: state.subjects,
+    sessions: state.sessions,
+    weeklyGoal: state.weeklyGoal
+  }));
+}
+
+function loadTasks() {
+  const data = localStorage.getItem('studyflow_tasks');
+  if (data) {
+    const parsed = JSON.parse(data);
+    state.tasks = parsed.tasks || [];
+    state.subjects = parsed.subjects || [];
+    state.sessions = parsed.sessions || [];
+    state.weeklyGoal = parsed.weeklyGoal || 10;
+  }
+  if (state.subjects.length === 0) {
+    state.subjects = [
+      { id: 's1', name: 'Mathematics', color: '#8b5cf6' },
+      { id: 's2', name: 'Physics', color: '#06b6d4' },
+      { id: 's3', name: 'Chemistry', color: '#f59e0b' },
+      { id: 's4', name: 'Biology', color: '#10b981' },
+      { id: 's5', name: 'Computer Science', color: '#ec4899' }
+    ];
+    const today = new Date();
+    const fmt = d => d.toISOString().split('T')[0];
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+    const in3 = new Date(today); in3.setDate(today.getDate()+3);
+    state.tasks = [
+      { id: 't1', title: 'Complete calculus problem set', desc: 'Chapter 5 derivatives', subjectId: 's1', priority: 'high', due: fmt(today), time: 60, done: false, created: Date.now() },
+      { id: 't2', title: 'Read Organic Chemistry ch.3', desc: 'Focus on reaction mechanisms', subjectId: 's3', priority: 'medium', due: fmt(tomorrow), time: 45, done: false, created: Date.now() },
+      { id: 't3', title: 'Physics lab report', desc: 'Kinematics experiment', subjectId: 's2', priority: 'high', due: fmt(in3), time: 90, done: false, created: Date.now() },
+      { id: 't4', title: 'Review data structures', desc: 'Trees and graphs', subjectId: 's5', priority: 'low', due: fmt(in3), time: 30, done: true, created: Date.now() }
+    ];
+    saveTasks();
+  }
+}
+
+// =====================================================
+// NAVIGATION
+// =====================================================
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-btn').forEach(b => {
+      b.classList.remove('tab-active');
+      b.classList.add('text-slate-400');
+    });
+    btn.classList.add('tab-active');
+    btn.classList.remove('text-slate-400');
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+    document.getElementById('view-' + tab).classList.remove('hidden');
+    const titles = {
+      dashboard: ['Dashboard', 'Welcome back! Let\'s make today productive.'],
+      timetable: ['Timetable', 'Manage your class schedule and Zoom links.'],
+      tasks: ['Tasks', 'Manage your study tasks and assignments.'],
+      calendar: ['Calendar', 'Plan your week at a glance.'],
+      timer: ['Pomodoro Timer', 'Stay focused with timed study sessions.'],
+      stats: ['Statistics', 'Track your study progress.']
+    };
+    document.getElementById('pageTitle').textContent = titles[tab][0];
+    document.getElementById('pageSubtitle').textContent = titles[tab][1];
+    if (tab === 'calendar') renderCalendar();
+    if (tab === 'stats') renderStats();
+    if (tab === 'timer') renderTimerTasks();
+    if (tab === 'timetable') renderTimetable();
+    // Close mobile sidebar
+    document.querySelector('aside').classList.remove('open');
+  });
+});
+
+// =====================================================
+// TIMETABLE FUNCTIONS
+// =====================================================
+function resolveLink(subject, customLink) {
+  if (customLink && customLink.trim().length > 0) return customLink.trim();
+  let s = (subject || "").toLowerCase();
+  if (s.includes("bio")) return ZOOM_LINKS.BIO;
+  if (s.includes("phys")) return ZOOM_LINKS.PHYS;
+  if (s.includes("chem")) return ZOOM_LINKS.CHEM;
+  return "";
+}
+
+function getMeetingStatus(cls) {
+  const [year, month, day] = cls.date.split("-").map(Number);
+  const [sHour, sMin] = cls.start.split(":").map(Number);
+  const [eHour, eMin] = cls.end.split(":").map(Number);
+  const startDt = new Date(year, month - 1, day, sHour, sMin, 0);
+  const endDt = new Date(year, month - 1, day, eHour, eMin, 0);
+  const unlockDt = new Date(startDt.getTime() - 10 * 60 * 1000);
+  const now = new Date();
+  const unlockTimeStr = unlockDt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  if (now < unlockDt) return { status: "locked", unlockTimeStr };
+  else if (now >= unlockDt && now <= endDt) return { status: "active" };
+  else return { status: "ended" };
+}
+
+function handleJoin(index) {
+  const cls = timetable[index];
+  const link = resolveLink(cls.subject, cls.link);
+  if (!link) { alert("No meeting link assigned for this class."); return; }
+  const meeting = getMeetingStatus(cls);
+  if (meeting.status === "active") window.open(link, "_blank");
+  else if (meeting.status === "locked") alert(`⛔ Class link is locked!\n\nUnlocks 10 minutes before class (at ${meeting.unlockTimeStr}).`);
+  else alert("This class session has already ended.");
+}
+
+function renderTimetable() {
+  const c = document.getElementById('timetableContainer');
+  c.innerHTML = '';
+  let grouped = {};
+  timetable.forEach(x => {
+    if (!grouped[x.date]) grouped[x.date] = [];
+    grouped[x.date].push(x);
+  });
+  const sortedDates = Object.keys(grouped).sort();
+  if (sortedDates.length === 0) {
+    c.innerHTML = '<div class="glass rounded-xl p-12 text-center"><p class="text-slate-400 text-lg">📭 No classes scheduled yet.</p></div>';
+    return;
+  }
+  sortedDates.forEach(date => {
+    let parts = date.split("-");
+    let d = new Date(parts[0], parts[1]-1, parts[2]);
+    let dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    let isToday = date === getTodayStr();
+    let card = `<div class="date-card glass rounded-2xl overflow-hidden mb-4 ${isToday ? 'ring-1 ring-violet-500/30' : ''}">
+      <div class="px-5 py-3 font-bold text-sm flex items-center gap-2" style="background:linear-gradient(90deg,#1a1d2e,#161825);border-bottom:1px solid #252840;color:#a5b4fc">
+        <span>📌</span> ${d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})} • ${dayNames[d.getDay()]}
+        ${isToday ? '<span class="ml-auto text-[10px] bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full font-semibold">TODAY</span>' : ''}
+      </div>`;
+    grouped[date].sort((a,b) => a.start.localeCompare(b.start));
+    grouped[date].forEach(cls => {
+      let idx = timetable.indexOf(cls);
+      let meeting = getMeetingStatus(cls);
+      let btnLabel = "Join Class 🟢", btnClass = "join-active";
+      if (meeting.status === "locked") { btnLabel = "🔒 Locked"; btnClass = "join-locked"; }
+      else if (meeting.status === "ended") { btnLabel = "Ended"; btnClass = "join-ended"; }
+      card += `
+      <div class="flex justify-between items-center px-5 py-4 border-t border-slate-800/50 gap-4 flex-wrap hover:bg-slate-800/20 transition">
+        <div class="flex gap-4 items-center flex-wrap">
+          <div class="time-badge">${cls.start} – ${cls.end}</div>
+          <div class="font-bold text-sm">${escapeHtml(cls.subject)}</div>
+          <div class="text-slate-400 text-xs">${escapeHtml(cls.teacher)}</div>
+        </div>
+        <div class="flex items-center gap-2 ml-auto">
+          <button class="${btnClass}" onclick="handleJoin(${idx})" title="${meeting.status==='locked'?'Unlocks 10 mins before':''}">${btnLabel}</button>
+          ${isAdmin ? `
+          <button class="icon-btn-sm" onclick="editClass(${idx})" title="Edit">✏️</button>
+          <button class="icon-btn-sm" onclick="deleteClass(${idx})" title="Delete">🗑️</button>` : ''}
+        </div>
+      </div>`;
+    });
+    card += '</div>';
+    c.innerHTML += card;
+  });
+}
+
+function renderDashTodayClasses() {
+  const today = getTodayStr();
+  const todayClasses = timetable.filter(c => c.date === today).sort((a,b) => a.start.localeCompare(b.start));
+  const el = document.getElementById('dashTodayClasses');
+  if (todayClasses.length === 0) {
+    el.innerHTML = '<p class="text-sm text-slate-400 text-center py-4">No classes today 🎉</p>';
+    return;
+  }
+  el.innerHTML = todayClasses.map(cls => {
+    let idx = timetable.indexOf(cls);
+    let meeting = getMeetingStatus(cls);
+    let btnLabel = "Join 🟢", btnClass = "join-active";
+    if (meeting.status === "locked") { btnLabel = "🔒 Locked"; btnClass = "join-locked"; }
+    else if (meeting.status === "ended") { btnLabel = "Ended"; btnClass = "join-ended"; }
+    return `
+    <div class="flex items-center justify-between p-3 rounded-xl bg-slate-800/30 gap-3 flex-wrap">
+      <div class="flex items-center gap-3 flex-wrap">
+        <span class="time-badge text-xs">${cls.start} – ${cls.end}</span>
+        <span class="font-semibold text-sm">${escapeHtml(cls.subject)}</span>
+        <span class="text-slate-400 text-xs">${escapeHtml(cls.teacher)}</span>
+      </div>
+      <button class="${btnClass}" style="padding:6px 14px;font-size:12px" onclick="handleJoin(${idx})">${btnLabel}</button>
+    </div>`;
+  }).join('');
+}
+
+function openClassModal() {
+  if (!isAdmin) return;
+  document.getElementById('classModal').classList.add('active');
+}
+function openBatchModal() {
+  if (!isAdmin) return;
+  document.getElementById('batchModal').classList.add('active');
+}
+
+function saveClass() {
+  if (!isAdmin) return;
+  const dVal = document.getElementById('classDate').value;
+  const sVal = document.getElementById('classStart').value;
+  const eVal = document.getElementById('classEnd').value;
+  const subVal = document.getElementById('classSubject').value.trim();
+  const tVal = document.getElementById('classTeacher').value.trim();
+  const lVal = document.getElementById('classLink').value.trim();
+  if (!dVal || !sVal || !eVal || !subVal) { alert("Please fill in Date, Times, and Subject."); return; }
+  let obj = { date: dVal, start: sVal, end: eVal, subject: subVal, teacher: tVal || "Faculty", link: resolveLink(subVal, lVal) };
+  if (editClassIndex >= 0) {
+    timetable[editClassIndex] = obj;
+    editClassIndex = -1;
+    document.getElementById('classModalTitle').innerText = "Add Class";
+  } else {
+    timetable.push(obj);
+  }
+  saveTimetable();
+  document.getElementById('classModal').classList.remove('active');
+  document.getElementById('classDate').value = '';
+  document.getElementById('classStart').value = '';
+  document.getElementById('classEnd').value = '';
+  document.getElementById('classSubject').value = '';
+  document.getElementById('classTeacher').value = '';
+  document.getElementById('classLink').value = '';
+  renderTimetable();
+  renderDashTodayClasses();
+}
+
+function editClass(i) {
+  if (!isAdmin) return;
+  editClassIndex = i;
+  let x = timetable[i];
+  document.getElementById('classDate').value = x.date;
+  document.getElementById('classStart').value = x.start;
+  document.getElementById('classEnd').value = x.end;
+  document.getElementById('classSubject').value = x.subject;
+  document.getElementById('classTeacher').value = x.teacher;
+  document.getElementById('classLink').value = x.link || '';
+  document.getElementById('classModalTitle').innerText = "Edit Class";
+  document.getElementById('classModal').classList.add('active');
+}
+
+function deleteClass(i) {
+  if (!isAdmin) return;
+  if (confirm("Delete this class?")) {
+    timetable.splice(i, 1);
+    saveTimetable();
+    renderTimetable();
+    renderDashTodayClasses();
+  }
+}
+
+function generateBatchSchedule() {
+  if (!isAdmin) return;
+  const startVal = document.getElementById('batchStart').value;
+  const endVal = document.getElementById('batchEnd').value;
+  const skipSundays = document.getElementById('skipSundays').checked;
+  if (!startVal || !endVal) { alert("Please select both start and end dates."); return; }
+  let [sy,sm,sd] = startVal.split("-").map(Number);
+  let [ey,em,ed] = endVal.split("-").map(Number);
+  let current = new Date(sy,sm-1,sd);
+  let end = new Date(ey,em-1,ed);
+  if (current > end) { alert("Start date must be on or before the end date."); return; }
+  const s1 = { subject: document.getElementById('s1Subject').value.trim()||"Biology", teacher: document.getElementById('s1Teacher').value.trim()||"Biology Faculty" };
+  const s2 = { subject: document.getElementById('s2Subject').value.trim()||"Physics", teacher: document.getElementById('s2Teacher').value.trim()||"Physics Faculty" };
+  const s3 = { subject: document.getElementById('s3Subject').value.trim()||"Chemistry", teacher: document.getElementById('s3Teacher').value.trim()||"Chemistry Faculty" };
+  let addedDays = 0;
+  while (current <= end) {
+    if (!skipSundays || current.getDay() !== 0) {
+      let dateStr = current.getFullYear()+'-'+String(current.getMonth()+1).padStart(2,'0')+'-'+String(current.getDate()).padStart(2,'0');
+      timetable.push(
+        { date:dateStr, start:"10:00", end:"12:00", subject:s1.subject, teacher:s1.teacher, link:resolveLink(s1.subject) },
+        { date:dateStr, start:"13:00", end:"15:00", subject:s2.subject, teacher:s2.teacher, link:resolveLink(s2.subject) },
+        { date:dateStr, start:"16:00", end:"18:00", subject:s3.subject, teacher:s3.teacher, link:resolveLink(s3.subject) }
+      );
+      addedDays++;
+    }
+    current.setDate(current.getDate()+1);
+  }
+  saveTimetable();
+  document.getElementById('batchModal').classList.remove('active');
+  renderTimetable();
+  renderDashTodayClasses();
+  alert(`Successfully generated timetable for ${addedDays} day(s)!`);
+}
+
+// Login and student profile
+function renderStudentInfo() {
+  document.getElementById('profileStudentName').textContent = studentInfo.name;
+  document.getElementById('profileStudentId').textContent = studentInfo.id;
+  document.getElementById('profileClass').textContent = studentInfo.course;
+  document.getElementById('profileSchool').textContent = studentInfo.school;
+  document.getElementById('profileMode').textContent = isAdmin ? 'Admin Mode' : 'Student Mode (View Only)';
+  document.getElementById('editStudentInfoBtn').classList.toggle('hidden', !isAdmin);
+}
+document.getElementById('schoolNameInput').addEventListener('input', e => {
+  document.getElementById('loginSchoolTitle').textContent = e.target.value.trim() || SCHOOL_NAME;
+});
+document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const school = document.getElementById('schoolNameInput').value.trim();
+  const email = document.getElementById('studentIdInput').value.trim();
+  const password = document.getElementById('studentPasswordInput').value;
+  if (school.toLowerCase() !== SCHOOL_NAME.toLowerCase()) {
+    setLoginMessage('Enter the correct school name.', true); return;
+  }
+  if (!firebaseReady || !auth) {
+    setLoginMessage('Firebase is not configured. Follow the setup guide first.', true); return;
+  }
+  setLoginMessage('Signing in…');
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    setLoginMessage('');
+  } catch (error) {
+    console.error(error);
+    const messages = {
+      'auth/invalid-credential': 'Incorrect email or password.',
+      'auth/user-not-found': 'No account exists for this email.',
+      'auth/wrong-password': 'Incorrect email or password.',
+      'auth/too-many-requests': 'Too many attempts. Wait a while and try again.',
+      'auth/invalid-email': 'Enter a valid school account email.'
+    };
+    setLoginMessage(messages[error.code] || 'Sign-in failed. Check your account and try again.', true);
+  }
+});
+function editStudentInfo() {
+  if (!isAdmin || !currentUser || !db) return;
+  const name = prompt('Student name:', studentInfo.name);
+  if (name === null) return;
+  const id = prompt('Student ID:', studentInfo.id);
+  if (id === null) return;
+  const course = prompt('Class / course:', studentInfo.course);
+  if (course === null) return;
+  const school = prompt('School name:', studentInfo.school);
+  if (school === null) return;
+  studentInfo = { name: name.trim() || studentInfo.name, id: id.trim() || studentInfo.id, course: course.trim() || studentInfo.course, school: school.trim() || studentInfo.school };
+  db.collection('users').doc(currentUser.uid).update({ name: studentInfo.name, studentId: studentInfo.id, course: studentInfo.course, school: studentInfo.school })
+    .then(() => { localStorage.setItem('studyPlaned_studentInfo', JSON.stringify(studentInfo)); renderStudentInfo(); })
+    .catch(error => { console.error(error); alert('Could not save profile. Admins can edit user profiles in Firebase Console.'); });
+}
+
+// Admin mode
+function toggleAdminMode() {
+  // Role is assigned by Firebase, never by a password prompt in client-side code.
+  if (!currentUser || !currentUserProfile || currentUserProfile.role !== 'admin') {
+    alert('Administrator access is required for this action.'); return;
+  }
+  isAdmin = !isAdmin;
+  updateAdminView(); renderStudentInfo(); renderTimetable();
+}
+
+function signOutPortal() {
+  if (auth) auth.signOut().catch(error => { console.error(error); alert('Could not sign out. Try again.'); });
+}
+
+function updateAdminView() {
+  const btn = document.getElementById('modeBtn');
+  const fab = document.getElementById('fabBtn');
+  const batchBtn = document.getElementById('batchBtn');
+  btn.classList.toggle('hidden', !currentUserProfile || currentUserProfile.role !== 'admin');
+  document.getElementById('logoutBtn').classList.toggle('hidden', !currentUser);
+  if (isAdmin) {
+    btn.innerHTML = '🔓 Exit Admin';
+    btn.style.borderColor = '#4ade80';
+    btn.style.color = '#4ade80';
+    fab.classList.remove('hidden');
+    batchBtn.classList.remove('hidden');
+  } else {
+    btn.innerHTML = '🔒 Admin';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+    fab.classList.add('hidden');
+    batchBtn.classList.add('hidden');
+  }
+}
+
+// Close modals on backdrop
+['classModal','batchModal'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target.id === id) document.getElementById(id).classList.remove('active');
+  });
+});
+
+// =====================================================
+// TASK FUNCTIONS
+// =====================================================
+function openTaskModal(taskId = null) {
+  state.editingTaskId = taskId;
+  const modal = document.getElementById('taskModal');
+  const form = document.getElementById('taskForm');
+  form.reset();
+  document.getElementById('modalTitle').textContent = taskId ? 'Edit Task' : 'New Task';
+  populateSubjectSelect();
+  if (taskId) {
+    const t = state.tasks.find(x => x.id === taskId);
+    document.getElementById('taskTitle').value = t.title;
+    document.getElementById('taskDesc').value = t.desc || '';
+    document.getElementById('taskSubject').value = t.subjectId;
+    document.getElementById('taskPriority').value = t.priority;
+    document.getElementById('taskDue').value = t.due || '';
+    document.getElementById('taskTime').value = t.time || 30;
+  } else {
+    document.getElementById('taskDue').value = fmtDate(new Date());
+  }
+  modal.classList.remove('hidden');
+}
+function closeTaskModal() {
+  document.getElementById('taskModal').classList.add('hidden');
+  state.editingTaskId = null;
+}
+function populateSubjectSelect() {
+  const sel = document.getElementById('taskSubject');
+  sel.innerHTML = state.subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+}
+
+document.getElementById('taskForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const data = {
+    title: document.getElementById('taskTitle').value.trim(),
+    desc: document.getElementById('taskDesc').value.trim(),
+    subjectId: document.getElementById('taskSubject').value,
+    priority: document.getElementById('taskPriority').value,
+    due: document.getElementById('taskDue').value,
+    time: parseInt(document.getElementById('taskTime').value) || 30
+  };
+  if (state.editingTaskId) {
+    const t = state.tasks.find(x => x.id === state.editingTaskId);
+    Object.assign(t, data);
+  } else {
+    state.tasks.push({ id: uid(), ...data, done: false, created: Date.now() });
+  }
+  saveTasks();
+  closeTaskModal();
+  renderAll();
+});
+
+function toggleTask(id) {
+  const t = state.tasks.find(x => x.id === id);
+  t.done = !t.done;
+  if (t.done) t.completedAt = Date.now(); else delete t.completedAt;
+  saveTasks();
+  renderAll();
+}
+function deleteTask(id) {
+  if (!confirm('Delete this task?')) return;
+  state.tasks = state.tasks.filter(t => t.id !== id);
+  saveTasks();
+  renderAll();
+}
+
+function renderTaskCard(t) {
+  const sub = getSubject(t.subjectId);
+  const priorityColors = { high:'priority-high', medium:'priority-medium', low:'priority-low' };
+  const overdue = t.due && !t.done && new Date(t.due+'T23:59:59') < new Date();
+  return `
+    <div class="task-card glass rounded-xl p-4 border border-transparent ${t.done?'done opacity-70':''}">
+      <div class="flex items-start gap-3">
+        <button onclick="toggleTask('${t.id}')" class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-md border-2 ${t.done?'bg-violet-500 border-violet-500':'border-slate-500 hover:border-violet-400'} flex items-center justify-center transition">
+          ${t.done ? '<svg class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+        </button>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-1">
+            <h4 class="task-title font-semibold text-sm">${escapeHtml(t.title)}</h4>
+            <span class="chip ${priorityColors[t.priority]} text-white">${t.priority}</span>
+            ${sub ? `<span class="chip" style="background:${sub.color}30;color:${sub.color}">${escapeHtml(sub.name)}</span>` : ''}
+          </div>
+          ${t.desc ? `<p class="text-xs text-slate-400 mb-2">${escapeHtml(t.desc)}</p>` : ''}
+          <div class="flex items-center gap-3 text-xs text-slate-400">
+            ${t.due ? `<span class="${overdue?'text-red-400 font-semibold':''}">📅 ${prettyDate(t.due)}${overdue?' (overdue)':''}</span>` : ''}
+            <span>⏱ ${t.time} min</span>
+          </div>
+        </div>
+        <div class="flex gap-1">
+          <button onclick="openTaskModal('${t.id}')" class="p-1.5 rounded hover:bg-slate-700 text-slate-400 hover:text-white">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button onclick="deleteTask('${t.id}')" class="p-1.5 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderTasks() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const fSub = document.getElementById('filterSubject').value;
+  const fPri = document.getElementById('filterPriority').value;
+  const fStat = document.getElementById('filterStatus').value;
+  let filtered = state.tasks.filter(t => {
+    if (search && !t.title.toLowerCase().includes(search) && !(t.desc||'').toLowerCase().includes(search)) return false;
+    if (fSub && t.subjectId !== fSub) return false;
+    if (fPri && t.priority !== fPri) return false;
+    if (fStat === 'done' && !t.done) return false;
+    if (fStat === 'pending' && t.done) return false;
+    return true;
+  });
+  filtered.sort((a,b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    const pa = {high:0,medium:1,low:2}[a.priority];
+    const pb = {high:0,medium:1,low:2}[b.priority];
+    if (pa !== pb) return pa - pb;
+    if (a.due && b.due) return a.due.localeCompare(b.due);
+    if (a.due) return -1;
+    if (b.due) return 1;
+    return b.created - a.created;
+  });
+  const list = document.getElementById('taskList');
+  const empty = document.getElementById('emptyTasks');
+  if (filtered.length === 0) { list.innerHTML = ''; empty.classList.remove('hidden'); }
+  else { empty.classList.add('hidden'); list.innerHTML = filtered.map(renderTaskCard).join(''); }
+  const fSel = document.getElementById('filterSubject');
+  const current = fSel.value;
+  fSel.innerHTML = '<option value="">All Subjects</option>' + state.subjects.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  fSel.value = current;
+}
+
+['searchInput','filterSubject','filterPriority','filterStatus'].forEach(id => {
+  document.getElementById(id).addEventListener('input', renderTasks);
+  document.getElementById(id).addEventListener('change', renderTasks);
+});
+
+// =====================================================
+// SUBJECTS
+// =====================================================
+function openSubjectModal() {
+  document.getElementById('subjectModal').classList.remove('hidden');
+  renderSubjectList();
+}
+function closeSubjectModal() {
+  document.getElementById('subjectModal').classList.add('hidden');
+}
+function renderSubjectList() {
+  document.getElementById('subjectList').innerHTML = state.subjects.map(s => `
+    <div class="flex items-center gap-2 p-2 rounded-lg bg-slate-800/50">
+      <div class="w-4 h-4 rounded" style="background:${s.color}"></div>
+      <span class="flex-1 text-sm">${escapeHtml(s.name)}</span>
+      <button onclick="deleteSubject('${s.id}')" class="text-slate-400 hover:text-red-400 p-1">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+      </button>
+    </div>`).join('');
+}
+function addSubject() {
+  const name = document.getElementById('newSubject').value.trim();
+  const color = document.getElementById('newSubjectColor').value;
+  if (!name) return;
+  state.subjects.push({ id: uid(), name, color });
+  document.getElementById('newSubject').value = '';
+  saveTasks();
+  renderSubjectList();
+  renderAll();
+}
+function deleteSubject(id) {
+  if (state.tasks.some(t => t.subjectId === id)) {
+    if (!confirm('This subject has tasks. Delete anyway?')) return;
+  }
+  state.subjects = state.subjects.filter(s => s.id !== id);
+  saveTasks();
+  renderSubjectList();
+  renderAll();
+}
+
+// =====================================================
+// DASHBOARD
+// =====================================================
+function renderDashboard() {
+  const today = fmtDate(new Date());
+  const todayTasks = state.tasks.filter(t => t.due === today);
+  const upcoming = state.tasks.filter(t => !t.done && t.due && t.due > today).sort((a,b) => a.due.localeCompare(b.due)).slice(0, 5);
+
+  document.getElementById('todayTasks').innerHTML = todayTasks.length
+    ? todayTasks.map(renderTaskCard).join('')
+    : '<p class="text-sm text-slate-400 text-center py-8">No tasks due today. 🎉</p>';
+  document.getElementById('todayCount').textContent = `${todayTasks.length} task${todayTasks.length!==1?'s':''}`;
+
+  document.getElementById('upcomingTasks').innerHTML = upcoming.length
+    ? upcoming.map(t => {
+        const sub = getSubject(t.subjectId);
+        const days = daysBetween(today, t.due);
+        return `
+          <div class="p-3 rounded-lg bg-slate-800/40 hover:bg-slate-800/70 transition cursor-pointer" onclick="openTaskModal('${t.id}')">
+            <div class="flex items-center gap-2 mb-1">
+              <div class="w-2 h-2 rounded-full" style="background:${sub?sub.color:'#64748b'}"></div>
+              <h4 class="text-sm font-medium truncate">${escapeHtml(t.title)}</h4>
+            </div>
+            <div class="flex items-center justify-between text-xs text-slate-400">
+              <span>${prettyDate(t.due)}</span>
+              <span class="${days<=1?'text-amber-400 font-semibold':''}">${days===1?'Tomorrow':`In ${days} days`}</span>
+            </div>
+          </div>`;
+      }).join('')
+    : '<p class="text-sm text-slate-400 text-center py-8">No upcoming deadlines.</p>';
+
+  const total = state.tasks.length;
+  const done = state.tasks.filter(t => t.done).length;
+  const totalMinutes = state.sessions.reduce((s,x) => s + x.minutes, 0);
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statDone').textContent = done;
+
+  // Classes today
+  const todayClasses = timetable.filter(c => c.date === today);
+  document.getElementById('statClassesToday').textContent = todayClasses.length;
+
+  document.getElementById('statHours').innerHTML = `${Math.round(totalMinutes/60*10)/10}<span class="text-lg text-slate-400 ml-1">h</span>`;
+
+  // Weekly goal
+  const weekStart = getMonday(new Date());
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6);
+  const weekDone = state.tasks.filter(t => {
+    if (!t.done || !t.completedAt) return false;
+    const d = new Date(t.completedAt);
+    return d >= weekStart && d <= weekEnd;
+  }).length;
+  const pct = Math.min(100, Math.round((weekDone / state.weeklyGoal) * 100));
+  document.getElementById('goalPercent').textContent = pct + '%';
+  document.getElementById('goalBar').style.width = pct + '%';
+  document.getElementById('goalDone').textContent = weekDone;
+  document.getElementById('goalTotal').textContent = state.weeklyGoal;
+
+  renderDashTodayClasses();
+  renderWeeklyChart();
+}
+
+let weeklyChartInstance;
+function renderWeeklyChart() {
+  const ctx = document.getElementById('weeklyChart');
+  if (!ctx) return;
+  const labels = [], doneData = [], newData = [];
+  const today = new Date();
+  const monday = getMonday(today);
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday); d.setDate(monday.getDate() + i);
+    const ds = fmtDate(d);
+    labels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
+    doneData.push(state.tasks.filter(t => t.completedAt && fmtDate(new Date(t.completedAt)) === ds).length);
+    newData.push(state.tasks.filter(t => fmtDate(new Date(t.created)) === ds).length);
+  }
+  if (weeklyChartInstance) weeklyChartInstance.destroy();
+  weeklyChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Created', data: newData, backgroundColor: 'rgba(139,92,246,0.5)', borderRadius: 6 },
+        { label: 'Completed', data: doneData, backgroundColor: 'rgba(16,185,129,0.6)', borderRadius: 6 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#cbd5e1' } } },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+        y: { ticks: { color: '#94a3b8', stepSize: 1 }, grid: { color: 'rgba(148,163,184,0.1)' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+// =====================================================
+// CALENDAR
+// =====================================================
+function renderCalendar() {
+  const start = new Date(state.currentWeekStart);
+  const end = new Date(start); end.setDate(start.getDate() + 6);
+  document.getElementById('weekLabel').textContent =
+    `${start.toLocaleDateString('en-US',{month:'short',day:'numeric'})} — ${end.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+  const grid = document.getElementById('calendarGrid');
+  const today = fmtDate(new Date());
+  let html = '';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const ds = fmtDate(d);
+    const dayTasks = state.tasks.filter(t => t.due === ds);
+    const dayClasses = timetable.filter(c => c.date === ds);
+    const isToday = ds === today;
+    html += `
+      <div class="calendar-cell glass rounded-lg p-2 ${isToday ? 'ring-2 ring-violet-500/50' : ''}">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs font-semibold ${isToday ? 'text-violet-300' : 'text-slate-400'}">${d.getDate()}</span>
+          <span class="text-[10px] text-slate-500">${dayTasks.length + dayClasses.length}</span>
+        </div>
+        <div class="space-y-1">
+          ${dayClasses.slice(0,2).map(c => `<div class="text-[10px] px-1.5 py-0.5 rounded truncate" style="background:rgba(99,102,241,0.2);color:#818cf8" title="${escapeHtml(c.subject)}">📚 ${escapeHtml(c.subject)}</div>`).join('')}
+          ${dayTasks.slice(0,3).map(t => {
+            const sub = getSubject(t.subjectId);
+            return `<div onclick="openTaskModal('${t.id}')" class="text-[11px] px-1.5 py-1 rounded truncate cursor-pointer hover:bg-slate-700/50 ${t.done?'opacity-50 line-through':''}" style="background:${sub?sub.color+'30':'#334155'};color:${sub?sub.color:'#cbd5e1'}" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</div>`;
+          }).join('')}
+          ${(dayTasks.length + dayClasses.length) > 4 ? `<div class="text-[10px] text-slate-500 px-1">+${dayTasks.length + dayClasses.length - 4} more</div>` : ''}
+        </div>
+      </div>`;
+  }
+  grid.innerHTML = html;
+}
+function changeWeek(delta) {
+  state.currentWeekStart.setDate(state.currentWeekStart.getDate() + delta * 7);
+  renderCalendar();
+}
+function goToday() {
+  state.currentWeekStart = getMonday(new Date());
+  renderCalendar();
+}
+
+// =====================================================
+// TIMER
+// =====================================================
+function setTimerMode(mode) {
+  state.timerMode = mode;
+  state.timerDuration = MODES[mode].duration;
+  state.timerRemaining = MODES[mode].duration;
+  state.timerRunning = false;
+  clearInterval(state.timerInterval);
+  document.querySelectorAll('.timer-mode').forEach(b => { b.classList.remove('tab-active'); b.classList.add('text-slate-400'); });
+  document.querySelector(`.timer-mode[data-mode="${mode}"]`).classList.add('tab-active');
+  document.querySelector(`.timer-mode[data-mode="${mode}"]`).classList.remove('text-slate-400');
+  document.getElementById('timerLabel').textContent = MODES[mode].label;
+  updateTimerDisplay();
+  updateStartBtn();
+}
+function updateTimerDisplay() {
+  const m = Math.floor(state.timerRemaining / 60);
+  const s = state.timerRemaining % 60;
+  document.getElementById('timerDisplay').textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  const circle = document.getElementById('timerCircle');
+  const circumference = 2 * Math.PI * 90;
+  const offset = circumference * (1 - state.timerRemaining / state.timerDuration);
+  circle.setAttribute('stroke-dashoffset', offset);
+}
+function updateStartBtn() {
+  const btn = document.getElementById('startBtn');
+  if (state.timerRunning) {
+    btn.innerHTML = '<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause';
+  } else {
+    btn.innerHTML = '<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start';
+  }
+}
+function toggleTimer() {
+  if (state.timerRunning) {
+    state.timerRunning = false;
+    clearInterval(state.timerInterval);
+  } else {
+    state.timerRunning = true;
+    state.timerInterval = setInterval(() => {
+      state.timerRemaining--;
+      if (state.timerRemaining <= 0) {
+        clearInterval(state.timerInterval);
+        state.timerRunning = false;
+        state.timerRemaining = 0;
+        onTimerComplete();
+      }
+      updateTimerDisplay();
+    }, 1000);
+  }
+  updateStartBtn();
+}
+function resetTimer() {
+  state.timerRunning = false;
+  clearInterval(state.timerInterval);
+  state.timerRemaining = state.timerDuration;
+  updateTimerDisplay();
+  updateStartBtn();
+}
+function onTimerComplete() {
+  updateStartBtn();
+  if (state.timerMode === 'focus') {
+    const mins = state.timerDuration / 60;
+    const taskId = document.getElementById('timerTask').value || null;
+    state.sessions.push({ date: fmtDate(new Date()), minutes: mins, taskId, timestamp: Date.now() });
+    saveTasks();
+    renderTimerStats();
+    alert(`🎉 Focus session complete! ${mins} minutes logged.`);
+  } else {
+    alert('Break over! Ready for another focus session?');
+  }
+}
+function renderTimerTasks() {
+  const sel = document.getElementById('timerTask');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">No task linked</option>' +
+    state.tasks.filter(t => !t.done).map(t => `<option value="${t.id}">${escapeHtml(t.title)}</option>`).join('');
+  sel.value = current;
+  renderTimerStats();
+}
+function renderTimerStats() {
+  const today = fmtDate(new Date());
+  const todaySessions = state.sessions.filter(s => s.date === today && s.minutes);
+  document.getElementById('sessionCount').textContent = todaySessions.length;
+  document.getElementById('totalFocus').textContent = todaySessions.reduce((s,x) => s + x.minutes, 0) + 'm';
+}
+
+// =====================================================
+// STATS
+// =====================================================
+let subjectChart, completionChart, focusChart;
+function renderStats() {
+  const subCounts = {};
+  state.tasks.forEach(t => {
+    const sub = getSubject(t.subjectId);
+    const key = sub ? sub.name : 'Unassigned';
+    const color = sub ? sub.color : '#64748b';
+    if (!subCounts[key]) subCounts[key] = { count: 0, color };
+    subCounts[key].count++;
+  });
+  const ctx1 = document.getElementById('subjectChart');
+  if (subjectChart) subjectChart.destroy();
+  subjectChart = new Chart(ctx1, {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(subCounts),
+      datasets: [{ data: Object.values(subCounts).map(v => v.count), backgroundColor: Object.values(subCounts).map(v => v.color), borderWidth: 0 }]
+    },
+    options: { plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', padding: 12 } } }, cutout: '65%' }
+  });
+
+  const done = state.tasks.filter(t => t.done).length;
+  const pending = state.tasks.length - done;
+  const ctx2 = document.getElementById('completionChart');
+  if (completionChart) completionChart.destroy();
+  completionChart = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels: ['Completed', 'Pending'],
+      datasets: [{ data: [done, pending], backgroundColor: ['#10b981', '#64748b'], borderWidth: 0 }]
+    },
+    options: { plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', padding: 12 } } }, cutout: '65%' }
+  });
+
+  const labels = [], data = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const ds = fmtDate(d);
+    labels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
+    data.push(state.sessions.filter(s => s.date === ds).reduce((s,x) => s + x.minutes, 0));
+  }
+  const ctx3 = document.getElementById('focusChart');
+  if (focusChart) focusChart.destroy();
+  focusChart = new Chart(ctx3, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{ label: 'Minutes', data, borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.15)', fill: true, tension: 0.4, pointBackgroundColor: '#8b5cf6', pointRadius: 5 }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.1)' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+// =====================================================
+// INIT
+// =====================================================
+function renderAll() {
+  renderDashboard();
+  renderTasks();
+  renderTimerTasks();
+}
+
+document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+loadTasks();
+updateAdminView();
+renderAll();
+updateTimerDisplay();
+renderTimetable();
+initFirebase();
+
+// Close modals on backdrop
+document.getElementById('taskModal').addEventListener('click', e => { if (e.target.id === 'taskModal') closeTaskModal(); });
+document.getElementById('subjectModal').addEventListener('click', e => { if (e.target.id === 'subjectModal') closeSubjectModal(); });
+
+// Auto-refresh timetable status every 30s
+setInterval(() => { renderTimetable(); renderDashTodayClasses(); }, 30000);
+</script>
+</body>
+</html>
